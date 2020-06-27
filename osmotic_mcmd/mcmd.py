@@ -5,6 +5,7 @@ A package to perform simulations of guest-loaded MOFs in the osmotic ensemble, b
 Handles the primary functions
 """
 
+import numpy as np
 from molmod.constants import boltzmann
 from molmod.units import angstrom, kjmol, kelvin, femtosecond, bar, kcalmol
 
