@@ -23,12 +23,20 @@ def test_mcmd_system():
     ff_file = pkg_resources.resource_filename(__name__, '../data/pars.txt')
     adsorbate_file = pkg_resources.resource_filename(__name__, '../data/argon.chk')
 
-    print(system_file)
-
-    T = 298 * kelvin
+    T = 87 * kelvin
     P = 1 * bar
-    fugacity = -35 * kjmol
-    MD_trial_fraction = 0.00001
+    MD_trial_fraction = 0.0001
     rcut = 15 * angstrom
 
+    from yaff.pes.eos import PREOS
+    eos = PREOS.from_name('argon')
+    fugacity = eos.calculate_fugacity(T,P)
+    mu = eos.calculate_mu(T,P)
+    print('Mu: ', mu/kjmol)
+    print('Fug: ', fugacity/bar)
+
     mcmd = MCMD(system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut)
+    mcmd.run_GCMC(300000, 1000)
+
+
+

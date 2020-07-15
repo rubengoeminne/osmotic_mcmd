@@ -156,8 +156,12 @@ def random_rot(pos, circlefrac=1):
 
 def random_ads(pos, rvecs):
 
-    pos = random_rot(pos)
+    if len(pos) == 0:
+        pos = random_rot(pos)
+
     pos -= np.average(pos, axis=0)
     new_com = np.random.rand()*rvecs[0] + np.random.rand()*rvecs[1] + np.random.rand()*rvecs[2]
 
     return pos + new_com
+
+
