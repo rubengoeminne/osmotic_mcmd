@@ -25,7 +25,7 @@ def test_mcmd_system():
 
     T = 87 * kelvin
     P = 1 * bar
-    MD_trial_fraction = 0.0001
+    MD_trial_fraction = 0.000
     rcut = 15 * angstrom
 
     from yaff.pes.eos import PREOS
@@ -35,8 +35,8 @@ def test_mcmd_system():
     print('Mu: ', mu/kjmol)
     print('Fug: ', fugacity/bar)
 
-    mcmd = MCMD(system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut)
-    mcmd.run_GCMC(300000, 1000)
+    mcmd = MCMD(system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = 25)
+    mcmd.run_GCMC(20000, 1000)
 
 
 

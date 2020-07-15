@@ -11,6 +11,7 @@ from copy import deepcopy
 from molmod.constants import boltzmann
 from molmod.constants import planck as h
 from molmod.units import angstrom, kjmol, kelvin, femtosecond, bar, kcalmol
+from molmod import Molecule
 from time import time
 from scipy.spatial import cKDTree
 import h5py as h5
@@ -22,7 +23,7 @@ from wrapper_forceparts import electrostatics, electrostatics_realspace, electro
 
 
 class MCMD():
-    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut):
+    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = None):
 
         self.ff_file = ff_file
         self.T = T
@@ -53,7 +54,7 @@ class MCMD():
         self.pos_ads = data.pos_ads
         self.n_ad = len(self.pos_ads)
         self.Z_ads = 0
-        self.write_trajectory = write_trajectory
+        self.fixed_N = fixed_N
 
         alpha_scale = 3.2
         gcut_scale = 1.0
@@ -144,6 +145,15 @@ class MCMD():
         return deleted_coord, e_new
 
 
+    def write_traj(self, traj, symbols):
+        f = open('results/trajectory_%.8f.xyz'%(self.P/(3.3989315828e-09)), 'w')
+        for iframe, frame in enumerate(traj):
+            f.write('%d\nsnapshot %d\n'%(len(frame), iframe))
+            for el, pos in zip(symbols, frame):
+                f.write('%s %f %f %f\n'%(el, pos[0]/angstrom, pos[1]/angstrom, pos[2]/angstrom))
+        f.close()
+
+
     def run_GCMC(self, N_iterations, N_sample):
 
         A = Acceptance()
@@ -157,6 +167,7 @@ class MCMD():
         N_samples = []
         E_samples = []
         pressures = []
+        traj = []
 
         print('\n Iteration  inst. N    inst. E    time [s]')
         print('--------------------------------------------')
@@ -171,7 +182,7 @@ class MCMD():
             acc = 0
 
             # Insertion / deletion
-            if(switch < self.prob[0]):
+            if(switch < self.prob[0] and not self.Z_ads == self.fixed_N):
 
                 if(switch < self.prob[0]/2):
 
@@ -321,6 +332,8 @@ class MCMD():
                 t_it = time()
                 N_samples.append(self.Z_ads)
                 E_samples.append(e)
+                if self.Z_ads == self.fixed_N:
+                    traj.append(self.pos)
 
         print('Average N: %.3f'%np.average(N_samples))
         np.save('results/N_%.8f.npy'%(self.P/(3.3989315828e-09)), np.array(N_samples))
@@ -330,3 +343,11 @@ class MCMD():
         n = np.append(self.data.numbers_MOF, np.tile(self.data.numbers_ads, self.Z_ads))
         s = System(n, self.pos, rvecs=self.rvecs)
         s.to_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
+
+        mol = Molecule.from_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
+        symbols = mol.symbols
+        self.write_traj(traj, symbols)
+
+
+
+
