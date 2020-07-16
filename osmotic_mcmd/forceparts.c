@@ -327,7 +327,7 @@ double mm3(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sig
     if(Z_ads == 0)
         return result;
 
-    double delta[3]; long rbegin[3], rend[3]; double j[3]; double sigma, epsilon;
+    double delta[3]; long rbegin[3], rend[3]; double j[3]; double sigma, epsilon, sig_rc;
 
     double d, d2, s2_d2;
     double rcut2 = rcut*rcut;
@@ -344,10 +344,13 @@ double mm3(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sig
 
             sigma = sigmas[iatom0]+sigmas[iatom1];
             epsilon = sqrt(epsilons[iatom0]*epsilons[iatom1]);
+            sig_rc = sigma/rcut;
 
-//            if(iatom0>=Nframe)
+            if(iatom1 > iatom0)
+                result += -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
 //                result += -2*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
 //            else
+//                result += -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
 //                result += -4*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
 
             // Determine the ranges of the real sum
@@ -372,10 +375,14 @@ double mm3(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sig
                                 d2 = d*d;
                             }
                             s2_d2 = sigma*sigma/d2;
-                            if(iatom0>=Nframe)
-                                result += 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
-                            else
+                            if(iatom1 > iatom0)
                                 result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+
+//                            if(iatom0>=Nframe)
+//                                result += 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+//                            else
+//                                result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+
                         }
                     }
                 }
@@ -406,7 +413,8 @@ double mm3(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sig
                         d2 = d*d;
                     }
                     s2_d2 = sigma*sigma/d2;
-                    result -= 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+                    if(i > j)
+                        result -= epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
                 }
 
             }
@@ -423,7 +431,7 @@ double mm3(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sig
 // Total dispersion ss interaction energy per unit cell
 double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, double* sigmas, double* epsilons, double rcut){
     double result = 0;
-    double delta[3]; long rbegin[3], rend[3]; double j[3]; double sigma, epsilon;
+    double delta[3]; long rbegin[3], rend[3]; double j[3]; double sigma, epsilon, sig_rc;
 
     double d, d2, s2_d2;
     double rcut2 = rcut*rcut;
@@ -432,7 +440,7 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
     cell_init(cell, rvecs, 3);
 
 //#pragma omp parallel for schedule(dynamic, 1) reduction(+ : result) private(delta, rbegin, rend, j, c6, c8, xAB, xAB_d, expx, d, d2) shared(rcut2)
-    for (int iatom0=0;iatom0<N;iatom0++){
+    for (int iatom0=0;iatom0<Nold;iatom0++){
         for (int iatom1=Nold;iatom1<N;iatom1++){
             delta[0] = pos[3*iatom1]   - pos[3*iatom0];
             delta[1] = pos[3*iatom1+1] - pos[3*iatom0+1];
@@ -440,11 +448,15 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
 
             sigma = sigmas[iatom0]+sigmas[iatom1];
             epsilon = sqrt(epsilons[iatom0]*epsilons[iatom1]);
+            sig_rc = sigma/rcut;
 
 //            if(iatom0>=Nold)
 //                result += -2*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
 //            else
 //                result += -4*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
+
+            result += -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
+//            printf("%.6f  ", -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc * 2625.499);
 
             // Determine the ranges of the real sum
             cell_set_ranges_rcut(cell, delta, rcut, rbegin, rend);
@@ -468,10 +480,10 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
                                 d2 = d*d;
                             }
                             s2_d2 = sigma*sigma/d2;
-                            if(iatom0>=Nold)
-                                result += 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
-                            else
-                                result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+//                            if(iatom0>=Nold)
+//                                result += 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+//                            else
+                            result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
                         }
                     }
                 }
@@ -479,6 +491,7 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
         }
     }
 
+    /*
     // Subtract intermolecular contributions
     for (int i=Nold;i<N;i++){
         for(int j=Nold;j<N;j++){
@@ -504,6 +517,7 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
             }
         }
     }
+    */
 
     cell_free(cell);
 
