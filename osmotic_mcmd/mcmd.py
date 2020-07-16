@@ -37,9 +37,9 @@ class MCMD():
         data = Parse_data(system_file, adsorbate_file, ff_file)
         self.data = data
 
-        print('ei: ', data.ei)
-        print('lj: ', data.lj)
-        print('mm3: ', data.mm3)
+#        print('ei: ', data.ei)
+#        print('lj: ', data.lj)
+#        print('mm3: ', data.mm3)
 
         assert data.ei == True
         assert data.mm3 == True

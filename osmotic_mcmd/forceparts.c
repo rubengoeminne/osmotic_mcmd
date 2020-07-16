@@ -293,25 +293,21 @@ double ss_ei_realspace_insert(int N, double* pos, int Nframe, int Nold, double* 
     // SELFINTERACTION TERMS
     //
 
-    /*
     double self = 0.0;
     for (int i=Nold;i<N;i++){
         self -= alpha/sqrt(M_PI)*charges[i]*charges[i];
     }
     result += self;
-    */
 
     //
     // NEUTRALIZING BACKGROUND
     //
 
-    /*
     double neut = 0.0;
     if(alpha > 0.0){
         neut += M_PI*(qtot*qtot-qprev*qprev)/2/cell->volume/alpha/alpha;
     }
     result += neut;
-    */
 
     cell_free(cell);
 
@@ -348,10 +344,6 @@ double mm3(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sig
 
             if(iatom1 > iatom0)
                 result += -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
-//                result += -2*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
-//            else
-//                result += -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
-//                result += -4*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
 
             // Determine the ranges of the real sum
             cell_set_ranges_rcut(cell, delta, rcut, rbegin, rend);
@@ -375,13 +367,8 @@ double mm3(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sig
                                 d2 = d*d;
                             }
                             s2_d2 = sigma*sigma/d2;
-                            if(iatom1 > iatom0)
+                            if(iatom1 >= iatom0)
                                 result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
-
-//                            if(iatom0>=Nframe)
-//                                result += 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
-//                            else
-//                                result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
 
                         }
                     }
@@ -440,7 +427,7 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
     cell_init(cell, rvecs, 3);
 
 //#pragma omp parallel for schedule(dynamic, 1) reduction(+ : result) private(delta, rbegin, rend, j, c6, c8, xAB, xAB_d, expx, d, d2) shared(rcut2)
-    for (int iatom0=0;iatom0<Nold;iatom0++){
+    for (int iatom0=0;iatom0<N;iatom0++){
         for (int iatom1=Nold;iatom1<N;iatom1++){
             delta[0] = pos[3*iatom1]   - pos[3*iatom0];
             delta[1] = pos[3*iatom1+1] - pos[3*iatom0+1];
@@ -450,13 +437,8 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
             epsilon = sqrt(epsilons[iatom0]*epsilons[iatom1]);
             sig_rc = sigma/rcut;
 
-//            if(iatom0>=Nold)
-//                result += -2*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
-//            else
-//                result += -4*M_PI/cell->volume*(-2.25*epsilon/3*pow(sigma/rcut,3));
-
-            result += -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
-//            printf("%.6f  ", -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc * 2625.499);
+            if(iatom1 > iatom0)
+                result += -3*M_PI/cell->volume*epsilon*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
 
             // Determine the ranges of the real sum
             cell_set_ranges_rcut(cell, delta, rcut, rbegin, rend);
@@ -480,10 +462,8 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
                                 d2 = d*d;
                             }
                             s2_d2 = sigma*sigma/d2;
-//                            if(iatom0>=Nold)
-//                                result += 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
-//                            else
-                            result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+                            if(iatom1 >= iatom0)
+                                result += epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
                         }
                     }
                 }
@@ -491,11 +471,10 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
         }
     }
 
-    /*
     // Subtract intermolecular contributions
     for (int i=Nold;i<N;i++){
         for(int j=Nold;j<N;j++){
-            if(i!=j){
+            if(i < j){
                 delta[0] = pos[3*j]   - pos[3*i];
                 delta[1] = pos[3*j+1] - pos[3*i+1];
                 delta[2] = pos[3*j+2] - pos[3*i+2];
@@ -511,13 +490,12 @@ double mm3_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, doubl
                         d2 = d*d;
                     }
                     s2_d2 = sigma*sigma/d2;
-                    result -= 0.5*epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
+                    result -= epsilon*(184000*exp(-12*d/sigma)-2.25*s2_d2*s2_d2*s2_d2);
                 }
 
             }
         }
     }
-    */
 
     cell_free(cell);
 
@@ -574,7 +552,7 @@ double lj(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sigm
                         if(d2<rcut2 && d2!=0.0){
                             s2_d2 = sigma*sigma/d2;
                             s6_d6 = s2_d2*s2_d2*s2_d2;
-                            if(iatom1 > iatom0)
+                            if(iatom1 >= iatom0)
                                 result += 4*epsilon*(s6_d6*(s6_d6-1));
 
 //                            if(iatom0>=Nframe)
@@ -636,7 +614,7 @@ double lj_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, double
     cell_init(cell, rvecs, 3);
 
 //#pragma omp parallel for schedule(dynamic, 1) reduction(+ : result) private(delta, rbegin, rend, j, c6, c8, xAB, xAB_d, expx, d, d2) shared(rcut2)
-    for (int iatom0=0;iatom0<Nold;iatom0++){
+    for (int iatom0=0;iatom0<N;iatom0++){
         for (int iatom1=Nold;iatom1<N;iatom1++){
             delta[0] = pos[3*iatom1]   - pos[3*iatom0];
             delta[1] = pos[3*iatom1+1] - pos[3*iatom0+1];
@@ -646,7 +624,8 @@ double lj_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, double
             epsilon = sqrt(epsilons[iatom0]*epsilons[iatom1]);
             sig_rc = sigma/rcut;
 
-            result += -16*M_PI*epsilon/3/cell->volume*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
+            if(iatom1 > iatom0)
+                result += -16*M_PI*epsilon/3/cell->volume*sigma*sigma*sigma*sig_rc*sig_rc*sig_rc;
 
             // Determine the ranges of the real sum
             cell_set_ranges_rcut(cell, delta, rcut, rbegin, rend);
@@ -666,10 +645,8 @@ double lj_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, double
                         if(d2<rcut2 && d2!=0.0){
                             s2_d2 = sigma*sigma/d2;
                             s6_d6 = s2_d2*s2_d2*s2_d2;
-//                            if(iatom0>=Nold)
-//                                result += 0.5*4*epsilon*(s6_d6*(s6_d6-1));
-//                            else
-                            result += 4*epsilon*(s6_d6*(s6_d6-1));
+                            if(iatom1 >= iatom0)
+                                result += 4*epsilon*(s6_d6*(s6_d6-1));
                         }
                     }
                 }
@@ -677,11 +654,10 @@ double lj_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, double
         }
     }
 
-    /*
     // Subtract intermolecular contributions
     for (int i=Nold;i<N;i++){
         for(int j=Nold;j<N;j++){
-            if(i!=j){
+            if(i < j){
                 delta[0] = pos[3*j]   - pos[3*i];
                 delta[1] = pos[3*j+1] - pos[3*i+1];
                 delta[2] = pos[3*j+2] - pos[3*i+2];
@@ -693,13 +669,12 @@ double lj_insert(int N, int Nold, int Nframe, double* pos, double* rvecs, double
                 if(d2<rcut2 && d2!=0.0){
                     s2_d2 = sigma*sigma/d2;
                     s6_d6 = s2_d2*s2_d2*s2_d2;
-                    result -= 0.5*4*epsilon*(s6_d6*(s6_d6-1));
+                    result -= 4*epsilon*(s6_d6*(s6_d6-1));
                 }
 
             }
         }
     }
-    */
 
     cell_free(cell);
 
