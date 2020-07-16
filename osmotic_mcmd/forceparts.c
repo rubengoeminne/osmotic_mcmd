@@ -589,7 +589,6 @@ double lj(int N, double* pos, int Nframe, int Z_ads, double* rvecs, double* sigm
         }
     }
 
-
     // Subtract intermolecular contributions
     double Nmol = (int)((N-Nframe)/Z_ads);
     double mol_iter;
