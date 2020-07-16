@@ -23,7 +23,7 @@ from wrapper_forceparts import electrostatics, electrostatics_realspace, electro
 
 
 class MCMD():
-    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = None):
+    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = None, write_h5s = False):
 
         self.ff_file = ff_file
         self.T = T
@@ -55,6 +55,9 @@ class MCMD():
         self.n_ad = len(self.pos_ads)
         self.Z_ads = 0
         self.fixed_N = fixed_N
+        self.count_mds = 0
+        self.write_h5s = write_h5s
+
 
         alpha_scale = 3.2
         gcut_scale = 1.0
