@@ -69,10 +69,10 @@ class MCMD():
         self.e_el_real = 0
         self.e_vdw = 0
 
-        if os.path.exists('results/output_%.8f.h5'%(self.P/(3.3989315828e-09))):
-            os.remove('results/output_%.8f.h5'%(self.P/(3.3989315828e-09)))
-        if os.path.exists('results/temp_%.8f.h5'%(self.P/(3.3989315828e-09))):
-            os.remove('results/temp_%.8f.h5'%(self.P/(3.3989315828e-09)))
+        if os.path.exists('results/output_%.8f.h5'%(self.P/bar)):
+            os.remove('results/output_%.8f.h5'%(self.P/bar))
+        if os.path.exists('results/temp_%.8f.h5'%(self.P/bar)):
+            os.remove('results/temp_%.8f.h5'%(self.P/bar))
 
 
     def overlap(self, pos):
@@ -154,7 +154,7 @@ class MCMD():
 
 
     def write_traj(self, traj, symbols):
-        f = open('results/fixed_N_trajectory_%.8f.xyz'%(self.P/(3.3989315828e-09)), 'w')
+        f = open('results/fixed_N_trajectory_%.8f.xyz'%(self.P/bar), 'w')
         for iframe, frame in enumerate(traj):
             f.write('%d\nsnapshot %d\n'%(len(frame), iframe))
             for el, pos in zip(symbols, frame):
@@ -166,8 +166,8 @@ class MCMD():
 
         datasets = {'cell':[], 'cons_err':[], 'econs':[], 'pos':[], 'press':[], 'ptens':[], 'temp':[], 'volume':[]}
 
-        temp = 'results/temp_%.8f.h5'%(self.P/(3.3989315828e-09))
-        previous = 'results/output_%.8f.h5'%(self.P/(3.3989315828e-09))
+        temp = 'results/temp_%.8f.h5'%(self.P/bar)
+        previous = 'results/output_%.8f.h5'%(self.P/bar)
 
         if os.path.exists(previous):
             f_prev = h5.File(previous, 'r')
@@ -337,7 +337,7 @@ class MCMD():
                 # Setup and NPT MD run
                 vsl = VerletScreenLog(step=50)
                 if self.write_h5s:
-                    hdf5_writer = HDF5Writer(h5.File('results/temp_%.8f.h5'%(self.P/(3.3989315828e-09)), mode='w'), step=5)
+                    hdf5_writer = HDF5Writer(h5.File('results/temp_%.8f.h5'%(self.P/bar), mode='w'), step=5)
                 mtk = MTKBarostat(ff, temp=self.T, press=self.P, \
                         timecon=1000*femtosecond, vol_constraint = True, anisotropic = True)
                 nhc = NHCThermostat(temp=self.T, timecon=100*femtosecond, chainlength=3)
@@ -393,20 +393,20 @@ class MCMD():
                     traj.append(self.pos)
 
         print('Average N: %.3f'%np.average(N_samples))
-        np.save('results/N_%.8f.npy'%(self.P/(3.3989315828e-09)), np.array(N_samples))
-        np.save('results/E_%.8f.npy'%(self.P/(3.3989315828e-09)), np.array(E_samples))
+        np.save('results/N_%.8f.npy'%(self.P/bar), np.array(N_samples))
+        np.save('results/E_%.8f.npy'%(self.P/bar), np.array(E_samples))
 
         if self.fixed_N:
 
             from yaff import System
             n = np.append(self.data.numbers_MOF, np.tile(self.data.numbers_ads, self.Z_ads))
             s = System(n, self.pos, rvecs=self.rvecs)
-            s.to_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
+            s.to_file('results/end_%.8f.xyz'%(self.P/bar))
 
-            mol = Molecule.from_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
+            mol = Molecule.from_file('results/end_%.8f.xyz'%(self.P/bar))
             symbols = mol.symbols
             self.write_traj(traj, symbols)
-            os.remove('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
+            os.remove('results/end_%.8f.xyz'%(self.P/bar))
 
 
 
