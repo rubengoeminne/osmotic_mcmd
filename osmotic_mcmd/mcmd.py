@@ -69,6 +69,11 @@ class MCMD():
         self.e_el_real = 0
         self.e_vdw = 0
 
+        if os.path.exists('results/output_%.8f.h5'%(self.P/(3.3989315828e-09))):
+            os.remove('results/output_%.8f.h5'%(self.P/(3.3989315828e-09)))
+        if os.path.exists('results/temp_%.8f.h5'%(self.P/(3.3989315828e-09))):
+            os.remove('results/temp_%.8f.h5'%(self.P/(3.3989315828e-09)))
+
 
     def overlap(self, pos):
         tree = cKDTree(pos, compact_nodes=False, copy_data=False, balanced_tree=False)
@@ -149,11 +154,50 @@ class MCMD():
 
 
     def write_traj(self, traj, symbols):
-        f = open('results/trajectory_%.8f.xyz'%(self.P/(3.3989315828e-09)), 'w')
+        f = open('results/fixed_N_trajectory_%.8f.xyz'%(self.P/(3.3989315828e-09)), 'w')
         for iframe, frame in enumerate(traj):
             f.write('%d\nsnapshot %d\n'%(len(frame), iframe))
             for el, pos in zip(symbols, frame):
                 f.write('%s %f %f %f\n'%(el, pos[0]/angstrom, pos[1]/angstrom, pos[2]/angstrom))
+        f.close()
+
+
+    def append_h5(self):
+
+        datasets = {'cell':[], 'cons_err':[], 'econs':[], 'pos':[], 'press':[], 'ptens':[], 'temp':[], 'volume':[]}
+
+        temp = 'results/temp_%.8f.h5'%(self.P/(3.3989315828e-09))
+        previous = 'results/output_%.8f.h5'%(self.P/(3.3989315828e-09))
+
+        if os.path.exists(previous):
+            f_prev = h5.File(previous, 'r')
+            for key, _ in datasets.items():
+                datasets[key] = f_prev['trajectory/%s'%key][:]
+            f_prev.close()
+            datasets['pos'] = datasets['pos'][:, :self.N_frame, :]
+
+        f_tmp = h5.File(temp, 'r')
+        for key, _ in datasets.items():
+            if len(datasets[key]) == 0:
+                datasets[key] = f_tmp['trajectory/%s'%key][:]
+                if key == 'pos':
+                    datasets[key] = datasets[key][:, :self.N_frame, :]
+            else:
+                if key == 'pos':
+                    datasets[key] = np.concatenate((datasets[key], f_tmp['trajectory/%s'%key][:, :self.N_frame, :]), axis=0)
+                else:
+                    datasets[key] = np.concatenate((datasets[key], f_tmp['trajectory/%s'%key][:]), axis=0)
+
+        f_tmp.close()
+
+        os.remove(temp)
+        if os.path.exists(previous):
+            os.remove(previous)
+
+        f = h5.File(previous, 'a')
+        f.create_group('trajectory')
+        for key, value in datasets.items():
+            f.create_dataset(name = 'trajectory/%s'%key, data = value)
         f.close()
 
 
@@ -274,7 +318,7 @@ class MCMD():
 
             else:
 
-                # MD run
+                # Construct system and forcefield class for the MD engine
                 print('e before MD: ', e/kjmol)
                 from yaff import System, ForceField, XYZWriter, VerletScreenLog, MTKBarostat, \
                                  NHCThermostat, TBCombination, VerletIntegrator, HDF5Writer, bar
@@ -290,16 +334,26 @@ class MCMD():
                 s.detect_bonds()
                 ff = ForceField.generate(s, self.ff_file, rcut=self.rcut, tailcorrections=True)
 
-                vsl = VerletScreenLog(step=100)
+                # Setup and NPT MD run
+                vsl = VerletScreenLog(step=50)
+                if self.write_h5s:
+                    hdf5_writer = HDF5Writer(h5.File('results/temp_%.8f.h5'%(self.P/(3.3989315828e-09)), mode='w'), step=5)
                 mtk = MTKBarostat(ff, temp=self.T, press=self.P, \
                         timecon=1000*femtosecond, vol_constraint = True, anisotropic = True)
                 nhc = NHCThermostat(temp=self.T, timecon=100*femtosecond, chainlength=3)
                 tbc = TBCombination(nhc, mtk)
 
+                # Run MD
                 t = time()
-                verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[tbc, vsl])
-                verlet.run(500)
+                if self.write_h5s:
+                    verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[tbc, vsl, hdf5_writer])
+                else:
+                    verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[tbc, vsl])
+                verlet.run(100)
                 print('MD time: ', time()-t)
+
+                # Append MD data to previous data
+                self.append_h5()
 
                 # Rebuild data for MC
                 pos_total = ff.system.pos
@@ -342,15 +396,17 @@ class MCMD():
         np.save('results/N_%.8f.npy'%(self.P/(3.3989315828e-09)), np.array(N_samples))
         np.save('results/E_%.8f.npy'%(self.P/(3.3989315828e-09)), np.array(E_samples))
 
-        from yaff import System
-        n = np.append(self.data.numbers_MOF, np.tile(self.data.numbers_ads, self.Z_ads))
-        s = System(n, self.pos, rvecs=self.rvecs)
-        s.to_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
+        if self.fixed_N:
 
-        mol = Molecule.from_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
-        symbols = mol.symbols
-        self.write_traj(traj, symbols)
+            from yaff import System
+            n = np.append(self.data.numbers_MOF, np.tile(self.data.numbers_ads, self.Z_ads))
+            s = System(n, self.pos, rvecs=self.rvecs)
+            s.to_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
 
+            mol = Molecule.from_file('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
+            symbols = mol.symbols
+            self.write_traj(traj, symbols)
+            os.remove('results/end_%.8f.xyz'%(self.P/(3.3989315828e-09)))
 
 
 
