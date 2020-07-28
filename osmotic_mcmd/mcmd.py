@@ -317,7 +317,7 @@ class MCMD():
                 # Construct system and forcefield class for the MD engine
                 print('e before MD: ', e/kjmol)
                 from yaff import System, ForceField, XYZWriter, VerletScreenLog, MTKBarostat, \
-                                 NHCThermostat, TBCombination, VerletIntegrator, HDF5Writer, bar
+                                 NHCThermostat, TBCombination, VerletIntegrator, HDF5Writer
 
                 n = np.append(self.data.numbers_MOF, np.tile(self.data.numbers_ads, self.Z_ads))
 
