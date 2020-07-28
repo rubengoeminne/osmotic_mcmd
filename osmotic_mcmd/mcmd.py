@@ -65,10 +65,16 @@ class MCMD():
         self.e_el_real = 0
         self.e_vdw = 0
 
-        if os.path.exists('results/output_%.8f.h5'%(self.P/bar)):
-            os.remove('results/output_%.8f.h5'%(self.P/bar))
-        if os.path.exists('results/temp_%.8f.h5'%(self.P/bar)):
-            os.remove('results/temp_%.8f.h5'%(self.P/bar))
+        if self.fixed_N:
+            if os.path.exists('results/output_%d.h5'%self.fixed_N):
+                os.remove('results/output_%d.h5'%self.fixed_N)
+            if os.path.exists('results/temp_%d.h5'%self.fixed_N):
+                os.remove('results/temp_%d.h5'%self.fixed_N)
+        else:
+            if os.path.exists('results/output_%d.h5'%self.fixed_N):
+                os.remove('results/output_%d.h5'%self.fixed_N)
+            if os.path.exists('results/temp_%d.h5'%self.fixed_N):
+                os.remove('results/temp_%d.h5'%self.fixed_N)
 
 
     def overlap(self, pos):
@@ -150,7 +156,7 @@ class MCMD():
 
 
     def write_traj(self, traj, symbols):
-        f = open('results/fixed_N_trajectory_%.8f.xyz'%(self.P/bar), 'w')
+        f = open('results/fixed_N_trajectory_%d.xyz'%self.fixed_N, 'w')
         for iframe, frame in enumerate(traj):
             f.write('%d\nsnapshot %d\n'%(len(frame), iframe))
             for el, pos in zip(symbols, frame):
@@ -162,8 +168,12 @@ class MCMD():
 
         datasets = {'cell':[], 'cons_err':[], 'econs':[], 'pos':[], 'press':[], 'ptens':[], 'temp':[], 'volume':[]}
 
-        temp = 'results/temp_%.8f.h5'%(self.P/bar)
-        previous = 'results/output_%.8f.h5'%(self.P/bar)
+        if self.fixed_N:
+            temp = 'results/temp_%d.h5'%self.fixed_N
+            previous = 'results/output_%d.h5'%self.fixed_N
+        else:
+            temp = 'results/temp_%.8f.h5'%(self.P/bar)
+            previous = 'results/output_%.8f.h5'%(self.P/bar)
 
         if os.path.exists(previous):
             f_prev = h5.File(previous, 'r')
@@ -333,7 +343,10 @@ class MCMD():
                 # Setup and NPT MD run
                 vsl = VerletScreenLog(step=50)
                 if self.write_h5s:
-                    hdf5_writer = HDF5Writer(h5.File('results/temp_%.8f.h5'%(self.P/bar), mode='w'), step=5)
+                    if self.fixed_N:
+                        hdf5_writer = HDF5Writer(h5.File('results/temp_%d.h5'%self.fixed_N, mode='w'), step=5)
+                    else:
+                        hdf5_writer = HDF5Writer(h5.File('results/temp_%.8f.h5'%(self.P/bar), mode='w'), step=5)
                 mtk = MTKBarostat(ff, temp=self.T, press=self.P, \
                         timecon=1000*femtosecond, vol_constraint = True, anisotropic = True)
                 nhc = NHCThermostat(temp=self.T, timecon=100*femtosecond, chainlength=3)
@@ -345,7 +358,7 @@ class MCMD():
                     verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[tbc, vsl, hdf5_writer])
                 else:
                     verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[tbc, vsl])
-                verlet.run(100)
+                verlet.run(500)
                 print('MD time: ', time()-t)
 
                 # Append MD data to previous data
@@ -389,20 +402,24 @@ class MCMD():
                     traj.append(self.pos)
 
         print('Average N: %.3f'%np.average(N_samples))
-        np.save('results/N_%.8f.npy'%(self.P/bar), np.array(N_samples))
-        np.save('results/E_%.8f.npy'%(self.P/bar), np.array(E_samples))
+        if self.fixed_N:
+            np.save('results/N_%d.npy'%self.fixed_N, np.array(N_samples))
+            np.save('results/E_%d.npy'%self.fixed_N, np.array(E_samples))
+        else:
+            np.save('results/N_%.8f.npy'%(self.P/bar), np.array(N_samples))
+            np.save('results/E_%.8f.npy'%(self.P/bar), np.array(E_samples))
 
         if self.fixed_N:
 
             from yaff import System
             n = np.append(self.data.numbers_MOF, np.tile(self.data.numbers_ads, self.Z_ads))
             s = System(n, self.pos, rvecs=self.rvecs)
-            s.to_file('results/end_%.8f.xyz'%(self.P/bar))
+            s.to_file('results/end_%d.xyz'%self.fixed_N)
 
-            mol = Molecule.from_file('results/end_%.8f.xyz'%(self.P/bar))
+            mol = Molecule.from_file('results/end_%d.xyz'%self.fixed_N)
             symbols = mol.symbols
             self.write_traj(traj, symbols)
-            os.remove('results/end_%.8f.xyz'%(self.P/bar))
+            os.remove('results/end_%d.xyz'%self.fixed_N)
 
 
 
