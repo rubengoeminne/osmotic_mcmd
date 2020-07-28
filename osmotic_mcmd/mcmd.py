@@ -73,7 +73,7 @@ class MCMD():
 
     def overlap(self, pos):
         tree = cKDTree(pos, compact_nodes=False, copy_data=False, balanced_tree=False)
-        pairs = tree.query_pairs(0.75*angstrom)
+        pairs = tree.query_pairs(0.1*angstrom)
         return len(list(pairs)) > 0
 
 
@@ -294,7 +294,7 @@ class MCMD():
 
                     # Calculate rotation energy as deletion + insertion of molecule
                     deleted_coord, e_new = self.deletion()
-                    deleted_coord = random_rot(deleted_coord, circlefrac=0.05)
+                    deleted_coord = random_rot(deleted_coord, circlefrac=0.1)
                     e_new = self.insertion(deleted_coord)
 
                 exp_value = -self.beta * (e_new - e)

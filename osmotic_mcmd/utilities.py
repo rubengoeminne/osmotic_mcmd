@@ -47,7 +47,7 @@ class Acceptance():
 
         return acc
 
-atomic_masses = np.array([0.0, 1.008, 4.003, 6.941, 9.012, 10.811, 12.011, 14.007, 15.999, 18.998, 20.18, 22.99, 24.305, 26.982, 28.086, 30.974, 32.065, 35.453, 39.948])*amu
+#atomic_masses = np.array([0.0, 1.008, 4.003, 6.941, 9.012, 10.811, 12.011, 14.007, 15.999, 18.998, 20.18, 22.99, 24.305, 26.982, 28.086, 30.974, 32.065, 35.453, 39.948])*amu
 
 class Parse_data():
     def __init__(self, system_file, adsorbate_file, ff_file):
@@ -65,7 +65,7 @@ class Parse_data():
 
         self.pos_ads = adsorbate.pos
         self.numbers_ads = adsorbate.numbers
-        self.mass_ads = sum(atomic_masses[self.numbers_ads])
+#        self.mass_ads = sum(atomic_masses[self.numbers_ads])
         self.system_ads = adsorbate
 
         self.parameter_list()
@@ -115,48 +115,51 @@ class Parse_data():
         self.radii = np.append(self.radii_MOF, np.tile(self.radii_ads, 2000))
 
 
+
 def random_rot(pos, circlefrac=1):
 
     # Translate to origin
     com = np.average(pos, axis=0)
     pos -= com
 
-    # Get random point on unit sphere
-    while True:
-        V1 = np.random.rand(); V2 = np.random.rand(); S = V1**2 + V2**2;
-        if S < 1:
-            break;
-    theta = np.array([2*np.pi*circlefrac*(2*V1*np.sqrt(1-S)-0.5),
-            2*np.pi*circlefrac*(2*V2*np.sqrt(1-S)-0.5),
-            np.pi*circlefrac*((1-2*S)/2)])
+    # from yaff
+    randnums = np.random.uniform(size=(3,))
+    theta, phi, z = randnums
 
-    # Rotation matrix
-    R_x = np.array([[1, 0, 0],
-            [0, np.cos(theta[0]), -np.sin(theta[0])],
-            [0, np.sin(theta[0]), np.cos(theta[0])]])
-    R_y = np.array([[np.cos(theta[1]), 0, np.sin(theta[1])],
-            [0, 1, 0],
-            [-np.sin(theta[1]), 0, np.cos(theta[1])]])
-    R_z = np.array([[np.cos(theta[2]), -np.sin(theta[2]),0],
-            [np.sin(theta[2]), np.cos(theta[2]),0],
-            [0, 0, 1]])
-    R = np.dot(R_z, np.dot( R_y, R_x ))
+    theta = theta * 2.0*circlefrac*np.pi  # Rotation about the pole (Z).
+    phi = phi * 2.0*np.pi  # For direction of pole deflection.
+    z = z * 2.0*circlefrac  # For magnitude of pole deflection.
 
-    pos_new = np.einsum('ij,jk', R, pos)
+    # Compute a vector V used for distributing points over the sphere
+    # via the reflection I - V Transpose(V).  This formulation of V
+    # will guarantee that if x[1] and x[2] are uniformly distributed,
+    # the reflected points will be uniform on the sphere.  Note that V
+    # has length sqrt(2) to eliminate the 2 in the Householder matrix.
 
-    '''
-    pos_new = np.zeros((len(pos), len(pos[0])))
-    for i, p in enumerate(pos):
-        pos_new[i] = np.dot(R, np.array(p).T)
-    '''
+    r = np.sqrt(z)
+    Vx, Vy, Vz = V = (
+        np.sin(phi) * r,
+        np.cos(phi) * r,
+        np.sqrt(2.0 - z)
+        )
 
-    # Translate to initial position
-    return pos_new + com
+    st = np.sin(theta)
+    ct = np.cos(theta)
+
+    R = np.array(((ct, st, 0), (-st, ct, 0), (0, 0, 1)))
+
+    # Construct the rotation matrix  ( V Transpose(V) - I ) R.
+
+    M = (np.outer(V, V) - np.eye(3)).dot(R)
+
+    pos = np.einsum('ib,ab->ia', pos, M)
+
+    return pos + com
 
 
 def random_ads(pos, rvecs):
 
-    if len(pos) == 0:
+    if len(pos) != 0:
         pos = random_rot(pos)
 
     pos -= np.average(pos, axis=0)
