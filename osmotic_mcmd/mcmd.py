@@ -8,13 +8,14 @@ Handles the primary functions
 import os, sys
 import numpy as np
 from copy import deepcopy
-from molmod.constants import boltzmann
+from molmod.constants import boltzmann, avogadro
 from molmod.constants import planck as h
-from molmod.units import angstrom, kjmol, kelvin, femtosecond, bar, kcalmol
+from molmod.units import angstrom, kjmol, kelvin, femtosecond, bar, kcalmol, kilogram
 from molmod import Molecule
 from time import time
 from scipy.spatial import cKDTree
 import h5py as h5
+from copy import copy, deepcopy
 
 from osmotic_mcmd.utilities import Acceptance, Parse_data, random_ads, random_rot
 from wrapper_ewald import Sfac, ewald_insertion, ewald_deletion, ewald_displace, ewald_from_sfac
@@ -396,7 +397,7 @@ class MCMD():
                 else:
                     e = 0
 
-    	    	log.set_level(log.medium)
+                log.set_level(log.medium)
                 print('e after MD: ', e/kjmol)
 
             if(iteration % N_sample == 0 and iteration > 0):
@@ -431,6 +432,107 @@ class MCMD():
             symbols = mol.symbols
             self.write_traj(traj, symbols)
             os.remove('results/end_%d.xyz'%self.fixed_N)
+
+
+
+class Widom():
+    def __init__(self, system_file, adsorbate_file, ff_file, T, rcut):
+
+        self.ff_file = ff_file
+        self.T = T
+        self.beta = 1/(boltzmann*T)
+        self.rcut = rcut
+
+        data = Parse_data(system_file, adsorbate_file, ff_file, self.rcut)
+        self.data = data
+
+        assert data.mm3 == True or data.lj == True
+
+        self.pos = data.pos_MOF
+        self.rvecs = data.rvecs
+        self.V = np.linalg.det(self.rvecs)
+        self.rvecs_flat = self.rvecs.reshape(9)
+        self.N_frame = len(self.pos)
+        self.nads = len(data.pos_ads)
+        self.charges = data.charges_MOF
+        self.pos_ads = data.pos_ads
+        self.n_ad = len(self.pos_ads)
+        self.mass = data.mass_MOF
+
+        self.alpha_scale = 3.2
+        self.gcut_scale = 1.0
+        self.alpha = self.alpha_scale / self.rcut
+        self.gcut = self.gcut_scale * self.alpha
+
+        self.sfac = Sfac(self.pos, self.N_frame, self.rvecs_flat, self.charges, self.alpha, self.gcut)
+        self.sfac_frame = deepcopy(self.sfac)
+        self.e_el_real, self.e_vdw = 0, 0
+
+
+    def compute_insertion(self, new_pos):
+        n = 1
+        plen = len(self.pos)
+
+        self.sfac = np.array(ewald_insertion(self.sfac, new_pos, self.rvecs_flat, self.data.charges_ads, self.alpha, self.gcut))
+        e_ewald = ewald_from_sfac(self.sfac, self.rvecs_flat, self.alpha, self.gcut)
+        self.e_el_real += electrostatics_realspace_insert(self.N_frame, len(self.pos)-self.nads, self.pos, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
+
+        if(self.data.mm3):
+            self.e_vdw += MM3_insert(self.pos, len(self.pos)-self.nads, self.N_frame, self.rvecs_flat, self.data.sigmas[:plen], self.data.epsilons[:plen], self.rcut)
+        elif(self.data.lj):
+            self.e_vdw += LJ_insert(self.pos, len(self.pos)-self.nads, self.N_frame, self.rvecs_flat, self.data.sigmas[:plen], self.data.epsilons[:plen], self.rcut)
+
+        return e_ewald + self.e_el_real + self.e_vdw
+
+    def run_widom(self, N_iterations, N_sample):
+
+        if not (os.path.isdir('results')):
+            os.mkdir('results')
+
+        E_samples = []
+
+        print('\n Iteration  inst. Hads [kJ/mol]  inst. K_H [mol/kg/bar]  time [s]')
+        print('-------------------------------------------------------------------')
+
+        t_it = time()
+
+        for iteration in range(N_iterations):
+
+            new_pos = random_ads(self.pos_ads, self.rvecs)
+            self.pos = np.append(self.pos, new_pos, axis=0)
+            e_insertion = self.compute_insertion(new_pos)
+            E_samples.append(e_insertion)
+
+            # Reset e_el_real, e_vdw, sfac and pos
+            self.sfac = deepcopy(self.sfac_frame)
+            self.e_el_real, self.e_vdw = 0, 0
+            self.pos = self.pos[:-self.n_ad]
+
+            if iteration > 0 and iteration % N_sample == 0:
+
+                E_temp = np.array(E_samples)
+                E_ads = np.average(E_temp*np.exp(-self.beta*E_temp))/np.average(np.exp(-self.beta*E_temp))
+
+                rho = self.mass/np.linalg.det(self.rvecs)
+                K_H = self.beta/rho*np.average(np.exp(-self.beta*E_temp))
+
+                print(' {:7.7}       {:7.7}                {:7.7}         {:7.4}'.format(
+                      str(iteration),str((E_ads - 1/self.beta)/kjmol),str(K_H/(avogadro/(kilogram*bar))), time()-t_it)
+                      )
+                t_it = time()
+
+
+
+        E_samples = np.array(E_samples)
+
+        E_ads = np.average(E_samples*np.exp(-self.beta*E_samples))/np.average(np.exp(-self.beta*E_samples))
+
+        rho = self.mass/np.linalg.det(self.rvecs)
+        K_H = self.beta/rho*np.average(np.exp(-self.beta*E_samples))
+
+        print('Hads [kJ/mol]: ', (E_ads - 1/self.beta)/kjmol)
+        print('K_H [mol/kg/bar]: ', K_H/(avogadro/(kilogram*bar)))
+
 
 
 

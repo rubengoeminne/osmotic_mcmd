@@ -61,6 +61,7 @@ class Parse_data():
         self.pos_MOF = system.pos
         self.rvecs = system.cell.rvecs
         self.numbers_MOF = system.numbers
+        self.mass_MOF = sum(system.masses)
         self.system = system
 
         self.pos_ads = adsorbate.pos
@@ -74,7 +75,7 @@ class Parse_data():
 
         pos = system.pos
         rvecs = system.cell.rvecs
-        ff = ForceField.generate(system, ff_file, rcut)
+        ff = ForceField.generate(system, ff_file, rcut=rcut)
 
         self.lj = False
         self.mm3 = False
