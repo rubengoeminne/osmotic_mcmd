@@ -522,9 +522,7 @@ class Widom():
                 t_it = time()
 
 
-
         E_samples = np.array(E_samples)
-
         E_ads = np.average(E_samples*np.exp(-self.beta*E_samples))/np.average(np.exp(-self.beta*E_samples))
 
         rho = self.mass/np.linalg.det(self.rvecs)
@@ -533,6 +531,6 @@ class Widom():
         print('Hads [kJ/mol]: ', (E_ads - 1/self.beta)/kjmol)
         print('K_H [mol/kg/bar]: ', K_H/(avogadro/(kilogram*bar)))
 
-
+        np.save('results/Widom_E.npy', np.array(E_samples))
 
 
