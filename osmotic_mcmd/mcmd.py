@@ -436,7 +436,7 @@ class MCMD():
 
 
 class Widom():
-    def __init__(self, system_file, adsorbate_file, ff_file, T, rcut):
+    def __init__(self, system_file, adsorbate_file, ff_file, T, rcut, write_all = False):
 
         self.ff_file = ff_file
         self.T = T
@@ -467,6 +467,7 @@ class Widom():
         self.sfac = Sfac(self.pos, self.N_frame, self.rvecs_flat, self.charges, self.alpha, self.gcut)
         self.sfac_frame = deepcopy(self.sfac)
         self.e_el_real, self.e_vdw = 0, 0
+        self.write_all = write_all
 
 
     def compute_insertion(self, new_pos):
@@ -523,14 +524,37 @@ class Widom():
 
 
         E_samples = np.array(E_samples)
-        E_ads = np.average(E_samples*np.exp(-self.beta*E_samples))/np.average(np.exp(-self.beta*E_samples))
+        E_ads_array = E_samples*np.exp(-self.beta*E_samples))/np.average(np.exp(-self.beta*E_samples)
+        E_ads = np.average(E_ads_array)
 
         rho = self.mass/np.linalg.det(self.rvecs)
-        K_H = self.beta/rho*np.average(np.exp(-self.beta*E_samples))
+        K_H_array = self.beta/rho*np.exp(-self.beta*E_samples)
+        K_H = np.average(K_H_array)
 
         print('Hads [kJ/mol]: ', (E_ads - 1/self.beta)/kjmol)
         print('K_H [mol/kg/bar]: ', K_H/(avogadro/(kilogram*bar)))
 
-        np.save('results/Widom_E.npy', np.array(E_samples))
+        if self.write_all:
+            np.save('results/Widom_E.npy', np.array(E_samples))
+        else:
+            # Do bootstrapping
+            def bootstrap(data):
+                means = []
+                for i in range(100):
+                    means.append(sample_mean(data))
+                return np.average(means), np.std(np.array(means))
 
+            def sample_mean(data):
+                resampled = np.random.choice(data, len(data), replace=True)
+                return np.average(resampled)
+
+            H_ads_array = (E_ads_array - 1/self.beta)/kjmol
+            H_ads_av, H_ads_std = bootstrap(H_ads_array)
+            K_H_array = K_H_array/(avogadro/(kilogram*bar))
+            K_H_av, K_H_std = bootstrap(K_H_array)
+
+            bootstrap_data = np.array([[H_ads_av, H_ads_std], [K_H_av, K_H_std]])
+            print(bootstrap_data)
+
+            np.save('results/Widom_result.npy', bootstrap_data)
 
