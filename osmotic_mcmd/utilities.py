@@ -58,6 +58,7 @@ class Parse_data():
         self.sigmas_MOF, self.epsilons_MOF, self.charges_MOF, self.radii_MOF = self.get_data(system, ff_file, rcut)
         self.sigmas_ads, self.epsilons_ads, self.charges_ads, self.radii_ads = self.get_data(adsorbate, ff_file, rcut)
 
+        system.set_standard_masses()
         self.pos_MOF = system.pos
         self.rvecs = system.cell.rvecs
         self.numbers_MOF = system.numbers
