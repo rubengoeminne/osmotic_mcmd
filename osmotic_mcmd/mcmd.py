@@ -23,7 +23,7 @@ from wrapper_forceparts import electrostatics, electrostatics_realspace, electro
 
 
 class MCMD():
-    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = None, write_h5s = False):
+    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = None, write_h5s = False, barostat = True, vol_constraint = False):
 
         self.ff_file = ff_file
         self.T = T
@@ -34,7 +34,7 @@ class MCMD():
         self.prob = np.cumsum(self.prob)/sum(self.prob)
         self.rcut = rcut
 
-        data = Parse_data(system_file, adsorbate_file, ff_file)
+        data = Parse_data(system_file, adsorbate_file, ff_file, self.rcut)
         self.data = data
 
         assert data.ei == True
@@ -53,17 +53,19 @@ class MCMD():
         self.fixed_N = fixed_N
         self.count_mds = 0
         self.write_h5s = write_h5s
+        self.barostat = barostat
+        self.vol_constraint = vol_constraint
 
-
-        alpha_scale = 3.2
-        gcut_scale = 1.0
-        self.alpha = alpha_scale / self.rcut
-        self.gcut = gcut_scale * self.alpha
+        self.alpha_scale = 3.2
+        self.gcut_scale = 1.0
+        self.alpha = self.alpha_scale / self.rcut
+        self.gcut = self.gcut_scale * self.alpha
         self.step = 1.0 * angstrom
 
         self.sfac = Sfac(self.pos, self.N_frame, self.rvecs_flat, self.charges, self.alpha, self.gcut)
         self.e_el_real = 0
         self.e_vdw = 0
+
 
         if self.fixed_N:
             if os.path.exists('results/output_%d.h5'%self.fixed_N):
@@ -71,15 +73,15 @@ class MCMD():
             if os.path.exists('results/temp_%d.h5'%self.fixed_N):
                 os.remove('results/temp_%d.h5'%self.fixed_N)
         else:
-            if os.path.exists('results/output_%d.h5'%self.fixed_N):
-                os.remove('results/output_%d.h5'%self.fixed_N)
-            if os.path.exists('results/temp_%d.h5'%self.fixed_N):
-                os.remove('results/temp_%d.h5'%self.fixed_N)
+            if os.path.exists('results/output_%.8f.h5'%(self.P/bar)):
+                os.remove('results/output_%.8f.h5'%(self.P/bar))
+            if os.path.exists('results/temp_%.8f.h5'%(self.P/bar)):
+                os.remove('results/temp_%.8f.h5'%(self.P/bar))
 
 
     def overlap(self, pos):
         tree = cKDTree(pos, compact_nodes=False, copy_data=False, balanced_tree=False)
-        pairs = tree.query_pairs(0.1*angstrom)
+        pairs = tree.query_pairs(0.05*angstrom)
         return len(list(pairs)) > 0
 
 
@@ -240,11 +242,11 @@ class MCMD():
                 if(switch < self.prob[0]/2):
 
                     new_pos = random_ads(self.pos_ads, self.rvecs)
-                    if not self.overlap(np.append(self.pos, new_pos, axis=0)):
-                        e_new = self.insertion(new_pos)
-                    else:
-                        self.Z_ads += 1
-                        e_new = 10e5
+#                    if not self.overlap(np.append(self.pos, new_pos, axis=0)):
+                    e_new = self.insertion(new_pos)
+#                    else:
+#                        self.Z_ads += 1
+#                        e_new = 10e5
 
                     exp_value = self.beta * (-e_new + e)
                     if(exp_value > 100):
@@ -289,45 +291,46 @@ class MCMD():
 
             elif(switch < self.prob[1]):
 
-                if self.Z_ads == 0: continue
+                if self.Z_ads != 0:
 
-                trial = np.random.randint(self.Z_ads)
+                    trial = np.random.randint(self.Z_ads)
 
-                if(switch < self.prob[0] + (self.prob[1]-self.prob[0])/2):
+                    if(switch < self.prob[0] + (self.prob[1]-self.prob[0])/2):
 
-                    # Calculate translation energy as deletion + insertion of molecule
-                    deleted_coord, e_new = self.deletion()
-                    deleted_coord += self.step * (np.random.rand(3) - 0.5)
-                    e_new = self.insertion(deleted_coord)
+                        # Calculate translation energy as deletion + insertion of molecule
+                        deleted_coord, e_new = self.deletion()
+                        deleted_coord += self.step * (np.random.rand(3) - 0.5)
+                        e_new = self.insertion(deleted_coord)
 
-                elif self.nads > 1:
+                    elif self.nads > 1:
 
-                    # Calculate rotation energy as deletion + insertion of molecule
-                    deleted_coord, e_new = self.deletion()
-                    deleted_coord = random_rot(deleted_coord, circlefrac=0.1)
-                    e_new = self.insertion(deleted_coord)
+                        # Calculate rotation energy as deletion + insertion of molecule
+                        deleted_coord, e_new = self.deletion()
+                        deleted_coord = random_rot(deleted_coord, circlefrac=0.1)
+                        e_new = self.insertion(deleted_coord)
 
-                exp_value = -self.beta * (e_new - e)
-                if(exp_value > 0):
-                    exp_value = 0
-                acc = min(1, np.exp(exp_value))
+                    exp_value = -self.beta * (e_new - e)
+                    if(exp_value > 0):
+                        exp_value = 0
+                    acc = min(1, np.exp(exp_value))
 
-                # Reject monte carlo move
-                if np.random.rand() > acc:
-                    self.pos = pos_init
-                    self.sfac = sfac_init
-                    self.e_el_real = e_el_real_init
-                    self.e_vdw = e_vdw_init
-                else:
-                    e = e_new
-#                    print('Trans: ', e_new/kjmol)
+                    # Reject monte carlo move
+                    if np.random.rand() > acc:
+                        self.pos = pos_init
+                        self.sfac = sfac_init
+                        self.e_el_real = e_el_real_init
+                        self.e_vdw = e_vdw_init
+                    else:
+                        e = e_new
+#                        print('Trans: ', e_new/kjmol)
 
             else:
 
                 # Construct system and forcefield class for the MD engine
                 print('e before MD: ', e/kjmol)
                 from yaff import System, ForceField, XYZWriter, VerletScreenLog, MTKBarostat, \
-                                 NHCThermostat, TBCombination, VerletIntegrator, HDF5Writer
+                                 NHCThermostat, TBCombination, VerletIntegrator, HDF5Writer, log
+                log.set_level(0)
 
                 n = np.append(self.data.numbers_MOF, np.tile(self.data.numbers_ads, self.Z_ads))
 
@@ -338,26 +341,33 @@ class MCMD():
 
                 s = System(n, self.pos, ffatypes = ffa, rvecs=self.rvecs)
                 s.detect_bonds()
-                ff = ForceField.generate(s, self.ff_file, rcut=self.rcut, tailcorrections=True)
+                ff = ForceField.generate(s, self.ff_file, 
+                                            rcut=self.rcut, 
+                                            alpha_scale=self.alpha_scale,
+                                            gcut_scale=self.gcut_scale,
+                                            tailcorrections=True)
 
                 # Setup and NPT MD run
                 vsl = VerletScreenLog(step=50)
                 if self.write_h5s:
                     if self.fixed_N:
-                        hdf5_writer = HDF5Writer(h5.File('results/temp_%d.h5'%self.fixed_N, mode='w'), step=5)
+                        hdf5_writer = HDF5Writer(h5.File('results/temp_%d.h5'%self.fixed_N, mode='w'), step=101)
                     else:
-                        hdf5_writer = HDF5Writer(h5.File('results/temp_%.8f.h5'%(self.P/bar), mode='w'), step=5)
-                mtk = MTKBarostat(ff, temp=self.T, press=self.P, \
-                        timecon=1000*femtosecond, vol_constraint = True, anisotropic = True)
-                nhc = NHCThermostat(temp=self.T, timecon=100*femtosecond, chainlength=3)
-                tbc = TBCombination(nhc, mtk)
+                        hdf5_writer = HDF5Writer(h5.File('results/temp_%.8f.h5'%(self.P/bar), mode='w'), step=101)
+
+       	       	ensemble_hook = NHCThermostat(temp=self.T, timecon=100*femtosecond, chainlength=3)
+                if self.barostat:
+                    mtk = MTKBarostat(ff, temp=self.T, press=self.P, \
+                        timecon=1000*femtosecond, vol_constraint = self.vol_constraint, anisotropic = True)
+                    ensemble_hook = TBCombination(ensemble_hook, mtk)
+
 
                 # Run MD
                 t = time()
                 if self.write_h5s:
-                    verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[tbc, vsl, hdf5_writer])
+                    verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[ensemble_hook, vsl, hdf5_writer])
                 else:
-                    verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[tbc, vsl])
+                    verlet = VerletIntegrator(ff, 0.5*femtosecond, hooks=[ensemble_hook, vsl])
                 verlet.run(500)
                 print('MD time: ', time()-t)
 
@@ -386,6 +396,7 @@ class MCMD():
                 else:
                     e = 0
 
+    	    	log.set_level(log.medium)
                 print('e after MD: ', e/kjmol)
 
             if(iteration % N_sample == 0 and iteration > 0):

@@ -50,13 +50,13 @@ class Acceptance():
 #atomic_masses = np.array([0.0, 1.008, 4.003, 6.941, 9.012, 10.811, 12.011, 14.007, 15.999, 18.998, 20.18, 22.99, 24.305, 26.982, 28.086, 30.974, 32.065, 35.453, 39.948])*amu
 
 class Parse_data():
-    def __init__(self, system_file, adsorbate_file, ff_file):
+    def __init__(self, system_file, adsorbate_file, ff_file, rcut):
 
         system = System.from_file(system_file)
         adsorbate = System.from_file(adsorbate_file)
 
-        self.sigmas_MOF, self.epsilons_MOF, self.charges_MOF, self.radii_MOF = self.get_data(system, ff_file)
-        self.sigmas_ads, self.epsilons_ads, self.charges_ads, self.radii_ads = self.get_data(adsorbate, ff_file)
+        self.sigmas_MOF, self.epsilons_MOF, self.charges_MOF, self.radii_MOF = self.get_data(system, ff_file, rcut)
+        self.sigmas_ads, self.epsilons_ads, self.charges_ads, self.radii_ads = self.get_data(adsorbate, ff_file, rcut)
 
         self.pos_MOF = system.pos
         self.rvecs = system.cell.rvecs
@@ -70,11 +70,11 @@ class Parse_data():
 
         self.parameter_list()
 
-    def get_data(self, system, ff_file):
+    def get_data(self, system, ff_file, rcut):
 
         pos = system.pos
         rvecs = system.cell.rvecs
-        ff = ForceField.generate(system, ff_file)
+        ff = ForceField.generate(system, ff_file, rcut)
 
         self.lj = False
         self.mm3 = False
