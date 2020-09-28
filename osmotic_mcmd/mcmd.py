@@ -522,36 +522,28 @@ class Widom():
                       )
                 t_it = time()
 
-
         E_samples = np.array(E_samples)
-        E_ads_array = E_samples*np.exp(-self.beta*E_samples))/np.average(np.exp(-self.beta*E_samples)
-        E_ads = np.average(E_ads_array)
-
-        rho = self.mass/np.linalg.det(self.rvecs)
-        K_H_array = self.beta/rho*np.exp(-self.beta*E_samples)
-        K_H = np.average(K_H_array)
-
-        print('Hads [kJ/mol]: ', (E_ads - 1/self.beta)/kjmol)
-        print('K_H [mol/kg/bar]: ', K_H/(avogadro/(kilogram*bar)))
 
         if self.write_all:
             np.save('results/Widom_E.npy', np.array(E_samples))
         else:
+            rho = self.mass/np.linalg.det(self.rvecs)
             # Do bootstrapping
-            def bootstrap(data):
+            def bootstrap(data, type='Hads'):
                 means = []
                 for i in range(100):
-                    means.append(sample_mean(data))
+                    means.append(sample_mean(data, type))
                 return np.average(means), np.std(np.array(means))
 
-            def sample_mean(data):
+            def sample_mean(data, type):
                 resampled = np.random.choice(data, len(data), replace=True)
-                return np.average(resampled)
+                if type == 'Hads':
+                    return (np.average(resampled*np.exp(-self.beta*resampled))/np.average(np.exp(-self.beta*resampled)) - 1/self.beta)/kjmol
+                elif type == 'KH':
+                    return np.average(self.beta/rho*np.exp(-self.beta*resampled) / (avogadro/(kilogram*bar)))
 
-            H_ads_array = (E_ads_array - 1/self.beta)/kjmol
-            H_ads_av, H_ads_std = bootstrap(H_ads_array)
-            K_H_array = K_H_array/(avogadro/(kilogram*bar))
-            K_H_av, K_H_std = bootstrap(K_H_array)
+            H_ads_av, H_ads_std = bootstrap(E_samples, type='Hads')
+            K_H_av, K_H_std = bootstrap(E_samples, type='KH')
 
             bootstrap_data = np.array([[H_ads_av, H_ads_std], [K_H_av, K_H_std]])
             print(bootstrap_data)

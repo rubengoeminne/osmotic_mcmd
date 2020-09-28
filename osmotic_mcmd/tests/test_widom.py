@@ -25,7 +25,7 @@ def test_widom_system():
     rcut = 15 * angstrom
 
     widom = Widom(system_file, adsorbate_file, ff_file, T, rcut)
-    widom.run_widom(25000, 5000)
+    widom.run_widom(50000, 5000)
 
 
 
