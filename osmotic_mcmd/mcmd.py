@@ -512,7 +512,13 @@ class Widom():
             if iteration > 0 and iteration % N_sample == 0:
 
                 E_temp = np.array(E_samples)
-                E_ads = np.average(E_temp*np.exp(-self.beta*E_temp))/np.average(np.exp(-self.beta*E_temp))
+
+                # if adsorption energies are very positive, a division by 0 error will occur here:
+                try:
+                    E_ads = np.average(E_temp*np.exp(-self.beta*E_temp))/np.average(np.exp(-self.beta*E_temp))
+                except:
+                    E_m = min(E_temp)
+                    E_ads = np.average(E_temp*np.exp(-self.beta*(E_temp-E_m)))/np.average(np.exp(-self.beta*(E_temp-E_m)))
 
                 rho = self.mass/np.linalg.det(self.rvecs)
                 K_H = self.beta/rho*np.average(np.exp(-self.beta*E_temp))
@@ -538,7 +544,11 @@ class Widom():
             def sample_mean(data, type):
                 resampled = np.random.choice(data, len(data), replace=True)
                 if type == 'Hads':
-                    return (np.average(resampled*np.exp(-self.beta*resampled))/np.average(np.exp(-self.beta*resampled)) - 1/self.beta)/kjmol
+                    try:
+                        return (np.average(resampled*np.exp(-self.beta*resampled))/np.average(np.exp(-self.beta*resampled)) - 1/self.beta)/kjmol
+                    except:
+                        E_m = min(resampled)
+                        return (np.average(resampled*np.exp(-self.beta*(resampled-E_m)))/np.average(np.exp(-self.beta*(resampled-E_m))) - 1/self.beta)/kjmol
                 elif type == 'KH':
                     return np.average(self.beta/rho*np.exp(-self.beta*resampled) / (avogadro/(kilogram*bar)))
 
