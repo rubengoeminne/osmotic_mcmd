@@ -24,7 +24,7 @@ from wrapper_forceparts import electrostatics, electrostatics_realspace, electro
 
 
 class MCMD():
-    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = None, write_h5s = False, barostat = True, vol_constraint = False):
+    def __init__(self, system_file, adsorbate_file, ff_file, T, P, fugacity, MD_trial_fraction, rcut, fixed_N = None, write_h5s = False, barostat = True, vol_constraint = False, ads_snaps = []):
 
         self.ff_file = ff_file
         self.T = T
@@ -56,6 +56,7 @@ class MCMD():
         self.write_h5s = write_h5s
         self.barostat = barostat
         self.vol_constraint = vol_constraint
+        self.ads_snaps = ads_snaps
 
         self.alpha_scale = 3.2
         self.gcut_scale = 1.0
@@ -158,10 +159,10 @@ class MCMD():
         return deleted_coord, e_new
 
 
-    def write_traj(self, traj, symbols):
+    def write_traj(self, traj, symbols, rvecs):
         f = open('results/fixed_N_trajectory_%d.xyz'%self.fixed_N, 'w')
         for iframe, frame in enumerate(traj):
-            f.write('%d\nsnapshot %d\n'%(len(frame), iframe))
+            f.write('%d\n%s\n'%(len(frame), ' '.join([str(rv/angstrom) for rv in rvecs[iframe]])))
             for el, pos in zip(symbols, frame):
                 f.write('%s %f %f %f\n'%(el, pos[0]/angstrom, pos[1]/angstrom, pos[2]/angstrom))
         f.close()
@@ -224,6 +225,8 @@ class MCMD():
         E_samples = []
         pressures = []
         traj = []
+        rvec_traj = []
+        len_ads_snaps = len(self.ads_snaps)
 
         print('\n Iteration  inst. N    inst. E    time [s]')
         print('--------------------------------------------')
@@ -242,7 +245,11 @@ class MCMD():
 
                 if(switch < self.prob[0]/2):
 
-                    new_pos = random_ads(self.pos_ads, self.rvecs)
+                    if len_ads_snaps > 0:
+                        new_pos = random_ads(self.ads_snaps[np.random.randint(len_ads_snaps)], self.rvecs)
+                    else:
+                        new_pos = random_ads(self.pos_ads, self.rvecs)
+
 #                    if not self.overlap(np.append(self.pos, new_pos, axis=0)):
                     e_new = self.insertion(new_pos)
 #                    else:
@@ -412,6 +419,7 @@ class MCMD():
                 E_samples.append(e)
                 if self.Z_ads == self.fixed_N:
                     traj.append(self.pos)
+                    rvec_traj.append(self.rvecs_flat)
 
         print('Average N: %.3f'%np.average(N_samples))
         if self.fixed_N:
@@ -430,7 +438,7 @@ class MCMD():
 
             mol = Molecule.from_file('results/end_%d.xyz'%self.fixed_N)
             symbols = mol.symbols
-            self.write_traj(traj, symbols)
+            self.write_traj(traj, symbols, rvec_traj)
             os.remove('results/end_%d.xyz'%self.fixed_N)
 
 
