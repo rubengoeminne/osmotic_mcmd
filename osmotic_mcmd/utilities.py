@@ -96,7 +96,7 @@ class Parse_data():
                 radii = part.pair_pot.radii
                 self.ei = True
 
-        if not self.mm3 and not self.ei:
+        if not self.mm3 and not self.lj:
             print('No vdW loaded')
             sigmas = np.zeros(len(pos))
             epsilons = np.zeros(len(pos))
