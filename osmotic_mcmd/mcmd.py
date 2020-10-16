@@ -38,7 +38,7 @@ class MCMD():
         data = Parse_data(system_file, adsorbate_file, ff_file, self.rcut)
         self.data = data
 
-        assert data.ei == True
+        self.ei_present = data.ei
         assert data.mm3 == True or data.lj == True
 
         self.pos = data.pos_MOF
@@ -91,9 +91,10 @@ class MCMD():
         n = self.Z_ads
         plen = len(self.pos)
 
-        self.sfac = np.array(ewald_insertion(self.sfac, new_pos, self.rvecs_flat, self.data.charges_ads, self.alpha, self.gcut))
-        e_ewald = ewald_from_sfac(self.sfac, self.rvecs_flat, self.alpha, self.gcut)
-        self.e_el_real += electrostatics_realspace_insert(self.N_frame, len(self.pos)-self.nads, self.pos, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
+        if self.ei_present:
+            self.sfac = np.array(ewald_insertion(self.sfac, new_pos, self.rvecs_flat, self.data.charges_ads, self.alpha, self.gcut))
+            e_ewald = ewald_from_sfac(self.sfac, self.rvecs_flat, self.alpha, self.gcut)
+            self.e_el_real += electrostatics_realspace_insert(self.N_frame, len(self.pos)-self.nads, self.pos, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
 
         if(self.data.mm3):
             self.e_vdw += MM3_insert(self.pos, len(self.pos)-self.nads, self.N_frame, self.rvecs_flat, self.data.sigmas[:plen], self.data.epsilons[:plen], self.rcut)
@@ -108,9 +109,10 @@ class MCMD():
         new_pos = np.append(self.pos, deleted_coord, axis=0)
         plen = len(new_pos)
 
-        self.sfac = np.array(ewald_deletion(self.sfac, deleted_coord, self.rvecs_flat, self.data.charges_ads, self.alpha, self.gcut))
-        e_ewald = ewald_from_sfac(self.sfac, self.rvecs_flat, self.alpha, self.gcut);
-        self.e_el_real -= electrostatics_realspace_insert(self.N_frame, len(self.pos), new_pos, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
+        if self.ei_present:
+            self.sfac = np.array(ewald_deletion(self.sfac, deleted_coord, self.rvecs_flat, self.data.charges_ads, self.alpha, self.gcut))
+            e_ewald = ewald_from_sfac(self.sfac, self.rvecs_flat, self.alpha, self.gcut);
+            self.e_el_real -= electrostatics_realspace_insert(self.N_frame, len(self.pos), new_pos, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
 
         if(self.data.mm3):
             self.e_vdw -= MM3_insert(new_pos, len(self.pos), self.N_frame, self.rvecs_flat, self.data.sigmas[:plen], self.data.epsilons[:plen], self.rcut)
@@ -128,7 +130,10 @@ class MCMD():
         if(n == 0):
             return 0
 
-        e_el = electrostatics(self.pos, self.N_frame, self.Z_ads, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
+        if self.ei_present:
+            e_el = electrostatics(self.pos, self.N_frame, self.Z_ads, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
+        else:
+            e_el = 0.0
 
         if(self.data.mm3):
             e_vdw = MM3(self.pos, self.N_frame, self.Z_ads, self.rvecs_flat, self.data.sigmas[:plen], self.data.epsilons[:plen], self.rcut)
