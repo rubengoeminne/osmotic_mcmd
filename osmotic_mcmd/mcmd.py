@@ -96,7 +96,7 @@ class MCMD():
             e_ewald = ewald_from_sfac(self.sfac, self.rvecs_flat, self.alpha, self.gcut)
             self.e_el_real += electrostatics_realspace_insert(self.N_frame, len(self.pos)-self.nads, self.pos, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
         else:
-            e_ewald = 0
+            e_ewald = 0.0
 
         if(self.data.mm3):
             self.e_vdw += MM3_insert(self.pos, len(self.pos)-self.nads, self.N_frame, self.rvecs_flat, self.data.sigmas[:plen], self.data.epsilons[:plen], self.rcut)
@@ -116,7 +116,7 @@ class MCMD():
             e_ewald = ewald_from_sfac(self.sfac, self.rvecs_flat, self.alpha, self.gcut);
             self.e_el_real -= electrostatics_realspace_insert(self.N_frame, len(self.pos), new_pos, self.rvecs_flat, self.data.charges[:plen], self.data.radii[:plen], self.rcut, self.alpha, self.gcut)
         else:
-            e_ewald = 0
+            e_ewald = 0.0
 
         if(self.data.mm3):
             self.e_vdw -= MM3_insert(new_pos, len(self.pos), self.N_frame, self.rvecs_flat, self.data.sigmas[:plen], self.data.epsilons[:plen], self.rcut)
@@ -453,7 +453,7 @@ class MCMD():
 
 
 class Widom():
-    def __init__(self, system_file, adsorbate_file, ff_file, T, rcut, write_all = False):
+    def __init__(self, system_file, adsorbate_file, ff_file, T, rcut, write_all = False, ads_snaps = []):
 
         self.ff_file = ff_file
         self.T = T
@@ -475,6 +475,7 @@ class Widom():
         self.pos_ads = data.pos_ads
         self.n_ad = len(self.pos_ads)
         self.mass = data.mass_MOF
+        self.ads_snaps = ads_snaps
 
         self.alpha_scale = 3.2
         self.gcut_scale = 1.0
@@ -508,6 +509,7 @@ class Widom():
             os.mkdir('results')
 
         E_samples = []
+        len_ads_snaps = len(self.ads_snaps)
 
         print('\n Iteration  inst. Hads [kJ/mol]  inst. K_H [mol/kg/bar]  time [s]')
         print('-------------------------------------------------------------------')
@@ -516,7 +518,11 @@ class Widom():
 
         for iteration in range(N_iterations):
 
-            new_pos = random_ads(self.pos_ads, self.rvecs)
+            if len_ads_snaps > 0:
+                new_pos = random_ads(self.ads_snaps[np.random.randint(len_ads_snaps)], self.rvecs)
+            else:
+                new_pos = random_ads(self.pos_ads, self.rvecs)
+
             self.pos = np.append(self.pos, new_pos, axis=0)
             e_insertion = self.compute_insertion(new_pos)
             E_samples.append(e_insertion)
